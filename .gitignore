@@ -21,3 +21,4 @@ functions/.env
 
 # IDE
 .vscode/
+scripts/serviceAccountKey.json

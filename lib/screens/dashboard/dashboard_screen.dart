@@ -39,6 +39,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<void> _yeniAracDialog() async {
+    final plakaController = TextEditingController();
+    final sahipController = TextEditingController();
+    final markaController = TextEditingController();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Yeni Araç Ekle', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: plakaController,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: 'Plaka', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: sahipController,
+              decoration: const InputDecoration(labelText: 'Araç Sahibi (Ad Soyad)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: markaController,
+              decoration: const InputDecoration(labelText: 'Marka / Model', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final plaka = plakaController.text.trim();
+                if (plaka.isEmpty || sahipController.text.trim().isEmpty) return;
+
+                final varMi = await _firestoreService.plakaKayitliMi(widget.user.sirketId, plaka);
+                if (varMi) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('Bu plaka bu dükkanda zaten kayıtlı.')),
+                    );
+                  }
+                  return;
+                }
+
+                await _firestoreService.aracEkle(Vehicle(
+                  id: '',
+                  sirketId: widget.user.sirketId,
+                  plaka: Vehicle.normalizePlaka(plaka),
+                  sahipAdSoyad: sahipController.text.trim(),
+                  markaModel: markaController.text.trim(),
+                ));
+
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Araç eklendi.')),
+                  );
+                }
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _giderKaydet() async {
     final aciklama = _giderAciklamaController.text.trim();
     final tutarText = _giderTutarController.text.trim();
@@ -104,7 +177,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     )),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _yeniAracDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Yeni Araç Ekle'),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               const Text('GENEL FİNANSAL DURUM (BU AY)',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
