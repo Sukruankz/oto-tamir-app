@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "768791757305",
+    "project_id": "oto-tamir-9d062",
+    "storage_bucket": "oto-tamir-9d062.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768791757305:android:46384f754c44bd2ac4bd28",
+        "android_client_info": {
+          "package_name": "com.ototamir.saas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAA2f8luqFFi0ehhlQT8Muf-oI6PwatClM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
