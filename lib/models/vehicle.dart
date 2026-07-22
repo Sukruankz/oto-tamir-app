@@ -45,17 +45,17 @@ class Vehicle {
 }
 
 /// PRD: Araç detay ekranındaki her bir "Yeni İşlem" kaydı (tamir/servis geçmişi).
-/// Kolon adları PRD'de ayrı bir tablo olarak verilmemiş; Gelir/Ciro'ya
-/// eklenmesi gerektiği için (3.2) burada modelliyoruz.
 class VehicleJob {
   final String id;
+  final String sirketId;
   final String yapilanIs;
   final double ucret;
-  final DateTime? tarih; // sunucu tarafından otomatik atanır
+  final DateTime? tarih;
   final String girenKullaniciId;
 
   VehicleJob({
     required this.id,
+    required this.sirketId,
     required this.yapilanIs,
     required this.ucret,
     this.tarih,
@@ -66,6 +66,7 @@ class VehicleJob {
     final data = doc.data() as Map<String, dynamic>;
     return VehicleJob(
       id: doc.id,
+      sirketId: data['sirketId'] ?? '',
       yapilanIs: data['yapilanIs'] ?? '',
       ucret: (data['ucret'] ?? 0).toDouble(),
       tarih: (data['tarih'] as Timestamp?)?.toDate(),
@@ -74,6 +75,7 @@ class VehicleJob {
   }
 
   Map<String, dynamic> toFirestore() => {
+        'sirketId': sirketId,
         'yapilanIs': yapilanIs,
         'ucret': ucret,
         'tarih': FieldValue.serverTimestamp(),

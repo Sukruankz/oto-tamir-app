@@ -8,11 +8,6 @@ import '../../widgets/finance_card.dart';
 import '../../widgets/support_bubble.dart';
 import '../vehicles/vehicle_detail_screen.dart';
 
-/// Ana sayfa: ekran görüntüsündeki panelin birebir karşılığı.
-/// - Üstte plaka arama çubuğu (PRD 3.2)
-/// - Finansal özet kartları (Gelir / Gider / Net Ciro)
-/// - Hızlı Gider Ekle (PRD 3.1 — sadece açıklama + tutar, tarih YOK)
-/// - Son işlem gören araçlar listesi
 class DashboardScreen extends StatefulWidget {
   final AppUser user;
   const DashboardScreen({super.key, required this.user});
@@ -149,7 +144,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Plaka arama çubuğu
               TextField(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
@@ -191,27 +185,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text('GENEL FİNANSAL DURUM (BU AY)',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 12),
-              // PRD 2: staff rolü net kâr/ciro'yu göremez.
-              Row(
-                children: [
-                  const Expanded(
-                    child: FinanceCard(label: 'Toplam Gelir', amount: 120000, color: AppColors.income),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: FinanceCard(
-                      label: 'Toplam Gider',
-                      amount: 34500,
-                      color: AppColors.expense,
-                      highlighted: true,
-                    ),
-                  ),
-                ],
+
+              StreamBuilder<Map<String, double>>(
+                stream: _firestoreService.ozetStream(widget.user.sirketId),
+                builder: (context, snapshot) {
+                  final gelir = snapshot.data?['gelir'] ?? 0;
+                  final gider = snapshot.data?['gider'] ?? 0;
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FinanceCard(label: 'Toplam Gelir', amount: gelir, color: AppColors.income),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FinanceCard(
+                              label: 'Toplam Gider',
+                              amount: gider,
+                              color: AppColors.expense,
+                              highlighted: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (widget.user.rol.netKarGorebilir) ...[
+                        const SizedBox(height: 12),
+                        FinanceCard(
+                          label: 'Net Ciro / Kâr',
+                          amount: gelir - gider,
+                          color: AppColors.netProfit,
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              if (widget.user.rol.netKarGorebilir) ...[
-                const SizedBox(height: 12),
-                const FinanceCard(label: 'Net Ciro / Kâr', amount: 85500, color: AppColors.netProfit),
-              ],
 
               const SizedBox(height: 24),
               const Text('HIZLI GİDER EKLE (Tarih Girmeden Anlık Kayıt)',
@@ -249,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 80), // destek balonuna yer aç
+              const SizedBox(height: 80),
             ],
           ),
         ),

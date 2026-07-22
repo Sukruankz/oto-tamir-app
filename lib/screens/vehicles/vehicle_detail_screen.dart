@@ -5,9 +5,6 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/support_bubble.dart';
 
-/// PRD 3.2 — Araç Detay Ekranı: aracın kimlik kartı.
-/// Sahip adı, marka/model, kronolojik iş geçmişi ve belirgin
-/// "Yeni İşlem Ekle" butonu.
 class VehicleDetailScreen extends StatefulWidget {
   final AppUser user;
   final Vehicle vehicle;
@@ -58,6 +55,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                   vehicleId: widget.vehicle.id,
                   job: VehicleJob(
                     id: '',
+                    sirketId: widget.user.sirketId,
                     yapilanIs: yapilanIsController.text.trim(),
                     ucret: ucret,
                     girenKullaniciId: widget.user.uid,

@@ -1,15 +1,5 @@
 rules_version = '2';
 
-// PRD 3.5 — Çoklu Kiracılı (Multi-Tenant) Veri İzolasyonu.
-// Postgres'teki Row-Level Security'nin Firestore karşılığı: her istek,
-// kullanıcının Auth token'ındaki custom claim'ler (sirketId, rol) ile
-// erişmeye çalıştığı dokümanın companies/{sirketId} yolundaki sirketId'yi
-// karşılaştırır. Eşleşmiyorsa erişim reddedilir.
-//
-// Custom claim'ler bir Cloud Function tarafından set edilir (bkz.
-// 01_Yol_Haritasi.md, Faz 1). Firestore Security Rules bu claim'lere
-// request.auth.token.sirketId / request.auth.token.rol ile erişir.
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -25,55 +15,45 @@ service cloud.firestore {
       return request.auth.token.rol;
     }
 
-    // PRD 2 — Sadece Admin: personel ekleme/çıkarma, plaka düzeltme,
-    // gider silme/düzenleme.
     function adminMi(sirketId) {
       return ayniSirket(sirketId) && rol() == 'admin';
     }
 
-    // SuperAdmin: sistem geneli, kiracı yönetimi. Kendi sirketId'sine
-    // bağlı değildir; ayrı bir claim (superadmin == true) ile kontrol edilir.
     function superAdminMi() {
       return girisYapmis() && request.auth.token.superadmin == true;
     }
 
     match /companies/{sirketId} {
       allow read: if ayniSirket(sirketId) || superAdminMi();
-      // Şirket kaydını sadece SuperAdmin oluşturur/yönetir (abonelik vb.)
       allow write: if superAdminMi();
 
       match /users/{userId} {
-        // Herkes kendi şirketindeki personel listesini görebilir
-        // (dashboard'da "kim girdi" bilgisi için gerekli).
         allow read: if ayniSirket(sirketId);
-        // PRD 3.3.1 — Sadece Admin personel ekleyip çıkartabilir.
         allow create, update, delete: if adminMi(sirketId);
       }
 
       match /vehicles/{vehicleId} {
         allow read: if ayniSirket(sirketId);
-        // Her rol (admin + staff) araç kaydedebilir (PRD 2 — Staff:
-        // "yeni araç kaydetme" yetkisine sahip).
         allow create: if ayniSirket(sirketId);
-        // PRD 3.3.2 — Plaka düzeltme SADECE Admin.
         allow update: if adminMi(sirketId);
         allow delete: if adminMi(sirketId);
 
         match /jobs/{jobId} {
           allow read: if ayniSirket(sirketId);
-          // PRD 3.2 — Yeni İşlem Ekle: her rol yapabilir.
           allow create: if ayniSirket(sirketId);
-          // İşlem geçmişi düzenleme/silme sadece Admin (veri bütünlüğü).
           allow update, delete: if adminMi(sirketId);
         }
       }
 
       match /expenses/{expenseId} {
         allow read: if ayniSirket(sirketId);
-        // PRD 3.1 — Hızlı Gider Ekle: her rol yapabilir.
         allow create: if ayniSirket(sirketId);
-        // PRD 2 — "Veri silme/düzenleme" sadece Admin yetkisinde.
         allow update, delete: if adminMi(sirketId);
+      }
+
+      match /summary/{monthId} {
+        allow read: if ayniSirket(sirketId);
+        allow write: if ayniSirket(sirketId);
       }
     }
   }
