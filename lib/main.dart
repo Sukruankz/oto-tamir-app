@@ -6,12 +6,12 @@ import 'screens/dashboard/dashboard_screen.dart';
 import 'theme/app_theme.dart';
 
 // `flutterfire configure` bu dosyayı otomatik üretir (Faz 2).
-// import 'firebase_options.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    // options: DefaultFirebaseOptions.currentPlatform,
+    options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const OtoTamirApp());
 }

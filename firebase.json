@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "oto-tamir-9d062",
+          "configurations": {
+            "android": "1:768791757305:android:46384f754c44bd2ac4bd28",
+            "ios": "1:768791757305:ios:537df634d2ef17b4c4bd28"
+          }
+        }
+      }
+    }
+  }
+}
