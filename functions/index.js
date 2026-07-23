@@ -1,15 +1,5 @@
 /**
  * Faz 1 — Cloud Functions iskeleti.
- * Bunlar client SDK ile YAPILAMAYACAK, mutlaka sunucu tarafında (Admin SDK
- * ile) çalışması gereken işlemlerdir:
- *   1) Kullanıcıya sirketId + rol custom claim atama
- *   2) Admin'in başka bir kullanıcı hesabı oluşturması (client SDK bunu
- *      yaparsa mevcut oturumu değiştirir — bu yüzden Admin SDK şart)
- *   3) Plaka mükerrer kontrolünü transaction içinde sunucu tarafında
- *      kesinleştirme (PRD 3.5)
- *
- * Kurulum: `firebase init functions` sonrası bu dosyayı functions/index.js
- * olarak kullanın, `npm install firebase-admin firebase-functions` çalıştırın.
  */
 
 const functions = require('firebase-functions');
@@ -20,8 +10,13 @@ const db = admin.firestore();
 const auth = admin.auth();
 
 /**
- * PRD 3.3.1 — Admin, yeni personeli e-posta+ad+geçici şifre ile ekler.
+ * PRD 3.3.1 — Admin, yeni personeli e-posta+ad+geçici şifre+rol ile ekler.
  * Sadece çağıran kullanıcının custom claim'i rol=='admin' ise çalışır.
+ *
+ * 3 rol desteklenir: 'admin' (Dükkan Sahibi — birden fazla olabilir),
+ * 'usta' ve 'cirak' (ikisi de aynı yetkiye sahiptir, sadece etiket
+ * farklıdır). Geçersiz/eksik rol gönderilirse en kısıtlı role ('cirak')
+ * düşülür.
  */
 exports.personelEkle = functions.https.onCall(async (data, context) => {
   if (!context.auth || context.auth.token.rol !== 'admin') {
@@ -32,7 +27,9 @@ exports.personelEkle = functions.https.onCall(async (data, context) => {
   }
 
   const sirketId = context.auth.token.sirketId;
-  const { email, adSoyad, geciciSifre } = data;
+  const { email, adSoyad, geciciSifre, rol } = data;
+  const gecerliRoller = ['admin', 'usta', 'cirak'];
+  const atanacakRol = gecerliRoller.includes(rol) ? rol : 'cirak';
 
   const userRecord = await auth.createUser({
     email,
@@ -40,10 +37,9 @@ exports.personelEkle = functions.https.onCall(async (data, context) => {
     displayName: adSoyad,
   });
 
-  // Yeni personele custom claim ata: aynı şirket, rol=staff
   await auth.setCustomUserClaims(userRecord.uid, {
     sirketId,
-    rol: 'staff',
+    rol: atanacakRol,
   });
 
   await db
@@ -54,7 +50,7 @@ exports.personelEkle = functions.https.onCall(async (data, context) => {
     .set({
       email,
       adSoyad,
-      rol: 'staff',
+      rol: atanacakRol,
       aktif: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -62,10 +58,6 @@ exports.personelEkle = functions.https.onCall(async (data, context) => {
   return { uid: userRecord.uid };
 });
 
-/**
- * SuperAdmin yeni bir şirket (kiracı) tanımladığında, o şirketin ilk
- * Admin kullanıcısını oluşturur ve custom claim atar.
- */
 exports.sirketVeAdminOlustur = functions.https.onCall(async (data, context) => {
   if (!context.auth || context.auth.token.superadmin !== true) {
     throw new functions.https.HttpsError(
@@ -105,11 +97,6 @@ exports.sirketVeAdminOlustur = functions.https.onCall(async (data, context) => {
   return { sirketId: sirketRef.id, uid: userRecord.uid };
 });
 
-/**
- * PRD 3.5 — Şirket bazlı mükerrer plaka kontrolü, transaction ile
- * sunucu tarafında kesinleştirilir (client tarafındaki ön kontrol
- * sadece UX içindir, race condition'a karşı garanti değildir).
- */
 exports.aracEkle = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Giriş yapmalısınız.');

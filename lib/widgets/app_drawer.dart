@@ -3,15 +3,13 @@ import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../screens/admin/admin_panel_screen.dart';
 import '../screens/profile/profil_duzenle_screen.dart';
+import '../screens/membership/uyelik_bilgileri_screen.dart';
+import '../screens/records/kayitlarim_screen.dart';
+import 'support_bubble.dart';
 
-/// Sağ üstteki hamburger menüsüyle açılan kullanıcı paneli.
-/// En üstte "profil fotosu" (şimdilik baş harfli avatar), altında isim
-/// ve rol, sonra menü seçenekleri, en altta kırmızı "Çıkış Yap".
 class AppDrawer extends StatelessWidget {
   final AppUser user;
-  // Profil düzenlendiğinde (isim değiştiğinde) çağrılır — DashboardScreen
-  // bunu dinleyip AppBar/Drawer'daki ismi tekrar login olmadan günceller.
-  final ValueChanged<String> onProfilGuncellendi;
+  final void Function(String yeniAd, String yeniFirmaAdi) onProfilGuncellendi;
 
   const AppDrawer({super.key, required this.user, required this.onProfilGuncellendi});
 
@@ -32,14 +30,35 @@ class AppDrawer extends StatelessWidget {
                     title: const Text('Profili Düzenle'),
                     onTap: () async {
                       Navigator.of(context).pop();
-                      final yeniAd = await Navigator.of(context).push<String>(
+                      final sonuc = await Navigator.of(context).push<Map<String, String>>(
                         MaterialPageRoute(
                           builder: (_) => ProfilDuzenleScreen(user: user),
                         ),
                       );
-                      if (yeniAd != null) onProfilGuncellendi(yeniAd);
+                      if (sonuc != null) {
+                        onProfilGuncellendi(
+                          sonuc['adSoyad'] ?? user.adSoyad,
+                          sonuc['firmaAdi'] ?? user.firmaAdi,
+                        );
+                      }
                     },
                   ),
+                  // Usta/Çırak: kendi girdiği işlem/gider kayıtlarını
+                  // görüp düzenleyebildiği ekran.
+                  if (user.rol.kendiKaydiniDuzenleyebilir)
+                    ListTile(
+                      leading: const Icon(Icons.edit_note_outlined),
+                      title: const Text('Kayıtlarım'),
+                      subtitle: const Text('Kendi girdiğiniz işlem ve giderler'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => KayitlarimScreen(user: user),
+                          ),
+                        );
+                      },
+                    ),
                   // PRD 3.3.1 — Sadece Admin personel ekleyip çıkartabilir.
                   if (user.rol.adminPaneliGorebilir)
                     ListTile(
@@ -68,7 +87,26 @@ class AppDrawer extends StatelessWidget {
                         );
                       },
                     ),
-                  // Yeni menü öğeleri buraya eklenebilir.
+                  ListTile(
+                    leading: const Icon(Icons.support_agent_outlined),
+                    title: const Text('Canlı Destek'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      showSupportChat(context);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.card_membership_outlined),
+                    title: const Text('Üyelik Bilgileri'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UyelikBilgileriScreen(user: user),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

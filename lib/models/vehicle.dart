@@ -8,6 +8,10 @@ class Vehicle {
   final String sahipAdSoyad;
   final String markaModel;
   final DateTime? createdAt;
+  // Yeni Araç Ekle formuna eklendi: müşteri telefon numarası ve aracın
+  // kilometresi (ikisi de opsiyonel, eski kayıtlarda olmayabilir).
+  final String? telefon;
+  final int? km;
   // "Son İşlem Gören Araçlar" listesi için denormalize edilmiş alanlar —
   // her "Yeni İşlem Ekle" işleminde güncellenir (bkz. FirestoreService.islemEkle).
   final String? sonYapilanIs;
@@ -20,6 +24,8 @@ class Vehicle {
     required this.sahipAdSoyad,
     required this.markaModel,
     this.createdAt,
+    this.telefon,
+    this.km,
     this.sonYapilanIs,
     this.sonIslemTarihi,
   });
@@ -33,6 +39,8 @@ class Vehicle {
       sahipAdSoyad: data['sahipAdSoyad'] ?? '',
       markaModel: data['markaModel'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      telefon: data['telefon'] as String?,
+      km: (data['km'] as num?)?.toInt(),
       sonYapilanIs: data['sonYapilanIs'] as String?,
       sonIslemTarihi: (data['sonIslemTarihi'] as Timestamp?)?.toDate(),
     );
@@ -43,6 +51,8 @@ class Vehicle {
         'plaka': plaka,
         'sahipAdSoyad': sahipAdSoyad,
         'markaModel': markaModel,
+        'telefon': telefon,
+        'km': km,
         'createdAt': FieldValue.serverTimestamp(),
       };
 

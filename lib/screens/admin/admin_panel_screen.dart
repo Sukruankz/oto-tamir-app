@@ -3,17 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../models/expense.dart';
 import '../../models/vehicle.dart';
+import '../../models/user_role.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/support_bubble.dart';
 
 const _turkceAylar = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
 ];
 
-/// "2026-07" gibi bir ay anahtarını "Temmuz 2026" etiketine çevirir.
 String _ayEtiketi(String ayKey) {
   if (ayKey == 'tarihsiz') return 'Tarihsiz';
   final parts = ayKey.split('-');
@@ -22,8 +21,6 @@ String _ayEtiketi(String ayKey) {
   return '${_turkceAylar[(ayIndex - 1).clamp(0, 11)]} $yil';
 }
 
-/// Verilen listeyi tarihe göre "yyyy-MM" anahtarlarıyla aya böler ve
-/// anahtarları en yeni ay en üstte olacak şekilde sıralar.
 List<MapEntry<String, List<T>>> _aylaraGrupla<T>(
   List<T> items,
   DateTime? Function(T) tarihSecici,
@@ -40,13 +37,11 @@ List<MapEntry<String, List<T>>> _aylaraGrupla<T>(
     ..sort((a, b) {
       if (a.key == 'tarihsiz') return 1;
       if (b.key == 'tarihsiz') return -1;
-      return b.key.compareTo(a.key); // yyyy-MM string sıralaması = kronolojik
+      return b.key.compareTo(a.key);
     });
   return girdiler;
 }
 
-/// PRD 3.3 — Admin Paneli. Sadece rol == admin görebilir (route guard,
-/// bkz. main.dart / router).
 class AdminPanelScreen extends StatelessWidget {
   final AppUser user;
   const AdminPanelScreen({super.key, required this.user});
@@ -66,16 +61,14 @@ class AdminPanelScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: SupportBubbleOverlay(
-          child: SafeArea(
-            top: false, // AppBar zaten üst çentiği kapsıyor.
-            child: TabBarView(
-              children: [
-                _PersonelTab(sirketId: user.sirketId),
-                _PlakaDuzeltmeTab(sirketId: user.sirketId),
-                _GelirGiderTab(sirketId: user.sirketId),
-              ],
-            ),
+        body: SafeArea(
+          top: false,
+          child: TabBarView(
+            children: [
+              _PersonelTab(sirketId: user.sirketId),
+              _PlakaDuzeltmeTab(sirketId: user.sirketId),
+              _GelirGiderTab(sirketId: user.sirketId),
+            ],
           ),
         ),
       ),
@@ -83,9 +76,6 @@ class AdminPanelScreen extends StatelessWidget {
   }
 }
 
-/// PRD 3.3.1 — Personel ekleme/çıkartma.
-/// NOT: Gerçek personel oluşturma bir Cloud Function (Admin SDK) çağırır
-/// (bkz. AuthService.personelEkle). Burada sadece UI akışı gösteriliyor.
 class _PersonelTab extends StatelessWidget {
   final String sirketId;
   const _PersonelTab({required this.sirketId});
@@ -109,10 +99,11 @@ class _PersonelTab extends StatelessWidget {
                 itemBuilder: (context, i) {
                   final data = docs[i].data() as Map<String, dynamic>;
                   final aktif = data['aktif'] ?? true;
+                  final rolEtiket = UserRole.fromString(data['rol'] ?? 'cirak').etiket;
                   return ListTile(
                     leading: const Icon(Icons.person),
                     title: Text(data['adSoyad'] ?? data['email'] ?? ''),
-                    subtitle: Text('${data['email'] ?? ''} · ${data['rol'] ?? 'staff'}'),
+                    subtitle: Text('${data['email'] ?? ''} · $rolEtiket'),
                     trailing: TextButton(
                       onPressed: () => docs[i].reference.update({'aktif': !aktif}),
                       child: Text(aktif ? 'Çıkart' : 'Aktif Et',
@@ -143,34 +134,50 @@ class _PersonelTab extends StatelessWidget {
     final emailController = TextEditingController();
     final adController = TextEditingController();
     final sifreController = TextEditingController();
+    UserRole secilenRol = UserRole.cirak;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Yeni Personel'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: adController, decoration: const InputDecoration(labelText: 'Ad Soyad')),
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: 'E-posta')),
-            TextField(controller: sifreController, decoration: const InputDecoration(labelText: 'Geçici Şifre'), obscureText: true),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Yeni Personel'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: adController, decoration: const InputDecoration(labelText: 'Ad Soyad')),
+              TextField(controller: emailController, decoration: const InputDecoration(labelText: 'E-posta')),
+              TextField(controller: sifreController, decoration: const InputDecoration(labelText: 'Geçici Şifre'), obscureText: true),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<UserRole>(
+                value: secilenRol,
+                decoration: const InputDecoration(labelText: 'Rol'),
+                items: const [
+                  DropdownMenuItem(value: UserRole.admin, child: Text('Dükkan Sahibi')),
+                  DropdownMenuItem(value: UserRole.usta, child: Text('Usta')),
+                  DropdownMenuItem(value: UserRole.cirak, child: Text('Çırak')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDialogState(() => secilenRol = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: AuthService().personelEkle(..., rol: secilenRol.anahtar)
+                // — Cloud Function (Blaze plan sonrası) bağlanınca aktif olacak.
+                Navigator.pop(ctx);
+              },
+              child: const Text('Ekle'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: AuthService().personelEkle(...) — Cloud Function bağlanınca
-              Navigator.pop(ctx);
-            },
-            child: const Text('Ekle'),
-          ),
-        ],
       ),
     );
   }
 }
 
-/// PRD 3.3.2 — Plaka Düzeltme. Sadece admin, mevcut plakayı düzenleyebilir.
 class _PlakaDuzeltmeTab extends StatelessWidget {
   final String sirketId;
   const _PlakaDuzeltmeTab({required this.sirketId});
@@ -225,11 +232,6 @@ class _PlakaDuzeltmeTab extends StatelessWidget {
   }
 }
 
-/// PRD 3.3.3 — Gelir ve Giderlerin ayrı ayrı, ay bazlı gruplanmış hâlde
-/// gösterildiği ve düzenlenebildiği bölüm. "Gelir" sekmesi tüm araçlara
-/// girilen işlemleri (jobs), "Gider" sekmesi tüm giderleri listeler; her
-/// ikisi de Haziran / Temmuz gibi ay gruplarına ayrılır (en yeni ay üstte),
-/// ve her satıra dokunarak ücret/tutar düzenlenebilir (sadece Admin).
 class _GelirGiderTab extends StatelessWidget {
   final String sirketId;
   const _GelirGiderTab({required this.sirketId});

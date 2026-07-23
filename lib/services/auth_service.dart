@@ -10,6 +10,9 @@ class AppUser {
   final String adSoyad;
   final String sirketId;
   final UserRole rol;
+  // companies/{sirketId} dokümanının 'name' alanı — dashboard üstünde ve
+  // Profil Düzenle ekranında gösterilir/düzenlenir (sadece Admin düzenleyebilir).
+  final String firmaAdi;
 
   AppUser({
     required this.uid,
@@ -17,6 +20,7 @@ class AppUser {
     required this.adSoyad,
     required this.sirketId,
     required this.rol,
+    this.firmaAdi = '',
   });
 
   /// Drawer/AppBar gibi yerlerde gösterilecek isim: adSoyad boşsa
@@ -25,13 +29,14 @@ class AppUser {
 
   /// Profil düzenleme sonrası, tekrar login olmadan ekranlardaki (AppBar,
   /// Drawer) ismi güncel tutmak için — yeni bir AppUser kopyası üretir.
-  AppUser copyWith({String? adSoyad}) {
+  AppUser copyWith({String? adSoyad, String? firmaAdi}) {
     return AppUser(
       uid: uid,
       email: email,
       adSoyad: adSoyad ?? this.adSoyad,
       sirketId: sirketId,
       rol: rol,
+      firmaAdi: firmaAdi ?? this.firmaAdi,
     );
   }
 }
@@ -62,6 +67,18 @@ class AuthService {
         .set({'adSoyad': yeniAdSoyad}, SetOptions(merge: true));
   }
 
+  /// Firma adını (companies/{sirketId}.name) günceller — sadece Admin
+  /// çağırabilir (bkz. firestore.rules: companies update adminMi).
+  Future<void> firmaAdiGuncelle({
+    required String sirketId,
+    required String yeniFirmaAdi,
+  }) async {
+    await FirebaseFirestore.instance
+        .collection('companies')
+        .doc(sirketId)
+        .set({'name': yeniFirmaAdi}, SetOptions(merge: true));
+  }
+
   /// PRD 3.3: Admin, yeni personeli e-posta+ad+şifre ile ekler.
   /// NOT: Bir başka kullanıcı hesabı client SDK ile oluşturmak mevcut
   /// oturumu değiştireceğinden, bu işlem gerçekte bir Cloud Function
@@ -90,7 +107,9 @@ class AuthService {
 
     // adSoyad custom claim'de değil, companies/{sirketId}/users/{uid}
     // dokümanında tutuluyor (bkz. FirestoreService / personelEkle).
+    // firmaAdi de companies/{sirketId} dokümanının 'name' alanından okunuyor.
     String adSoyad = '';
+    String firmaAdi = '';
     if (sirketId.isNotEmpty) {
       final userDoc = await FirebaseFirestore.instance
           .collection('companies')
@@ -99,6 +118,12 @@ class AuthService {
           .doc(user.uid)
           .get();
       adSoyad = (userDoc.data()?['adSoyad'] as String?) ?? '';
+
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(sirketId)
+          .get();
+      firmaAdi = (companyDoc.data()?['name'] as String?) ?? '';
     }
 
     return AppUser(
@@ -107,6 +132,7 @@ class AuthService {
       adSoyad: adSoyad,
       sirketId: sirketId,
       rol: UserRole.fromString(claims['rol'] ?? 'staff'),
+      firmaAdi: firmaAdi,
     );
   }
 }

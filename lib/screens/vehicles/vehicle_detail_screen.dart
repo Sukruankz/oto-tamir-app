@@ -3,11 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/vehicle.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
-import '../../widgets/support_bubble.dart';
 
-/// PRD 3.2 — Araç Detay Ekranı: aracın kimlik kartı.
-/// Sahip adı, marka/model, kronolojik iş geçmişi ve belirgin
-/// "Yeni İşlem Ekle" butonu.
 class VehicleDetailScreen extends StatefulWidget {
   final AppUser user;
   final Vehicle vehicle;
@@ -75,8 +71,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 
-  /// Sadece Admin: mevcut bir işlemin ücretini / yapılan iş adını düzenler
-  /// (bkz. firestore.rules — jobs update yalnızca adminMi).
+  /// Admin HER kaydı, Usta/Çırak SADECE kendi girdiği kaydı düzenler.
   Future<void> _islemDuzenleDialog(VehicleJob job) async {
     final yapilanIsController = TextEditingController(text: job.yapilanIs);
     final ucretController = TextEditingController(text: job.ucret.toStringAsFixed(0));
@@ -138,8 +133,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.vehicle.plaka)),
-      body: SupportBubbleOverlay(
-        child: SafeArea(
+      body: SafeArea(
           child: Column(
           children: [
             Padding(
@@ -153,6 +147,10 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       Text('Müşteri: ${widget.vehicle.sahipAdSoyad}'),
                       Text('Araç: ${widget.vehicle.markaModel}'),
                       Text('Plaka: ${widget.vehicle.plaka}'),
+                      if (widget.vehicle.telefon != null && widget.vehicle.telefon!.isNotEmpty)
+                        Text('Telefon: ${widget.vehicle.telefon}'),
+                      if (widget.vehicle.km != null)
+                        Text('Kilometre: ${widget.vehicle.km} km'),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -184,11 +182,15 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     return const Center(child: Text('Henüz işlem kaydı yok.'));
                   }
                   final formatter = DateFormat('dd.MM.yyyy HH:mm');
-                  final duzenlenebilir = widget.user.rol.adminPaneliGorebilir;
                   return ListView.builder(
                     itemCount: jobs.length,
                     itemBuilder: (context, i) {
                       final job = jobs[i];
+                      // Admin HER kaydı düzenleyebilir. Usta/Çırak SADECE
+                      // kendi girdiği kaydı düzenleyebilir (bkz. firestore.rules).
+                      final kendiKaydiMi = job.girenKullaniciId == widget.user.uid;
+                      final duzenlenebilir = widget.user.rol.adminPaneliGorebilir ||
+                          (widget.user.rol.kendiKaydiniDuzenleyebilir && kendiKaydiMi);
                       return ListTile(
                         title: Text(job.yapilanIs),
                         subtitle: Text(job.tarih != null ? formatter.format(job.tarih!) : '—'),
@@ -212,7 +214,6 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
           ],
           ),
         ),
-      ),
     );
   }
 }

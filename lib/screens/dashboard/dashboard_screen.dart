@@ -6,13 +6,12 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/finance_card.dart';
-import '../../widgets/support_bubble.dart';
 import '../../widgets/app_drawer.dart';
 import '../vehicles/vehicle_detail_screen.dart';
 
 /// Ana sayfa: ekran görüntüsündeki panelin birebir karşılığı.
 /// - Üstte plaka arama çubuğu (PRD 3.2)
-/// - Finansal özet kartları (Gelir / Gider / Net Ciro) — canlı (stream)
+/// - Finansal özet kartları (Gelir / Gider / Net Kar) — canlı (stream)
 /// - Hızlı Gider Ekle (PRD 3.1 — sadece açıklama + tutar, tarih YOK)
 class DashboardScreen extends StatefulWidget {
   final AppUser user;
@@ -53,6 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final plakaController = TextEditingController();
     final sahipController = TextEditingController();
     final markaController = TextEditingController();
+    final telefonController = TextEditingController();
+    final kmController = TextEditingController();
 
     await showModalBottomSheet(
       context: context,
@@ -83,6 +84,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               controller: markaController,
               decoration: const InputDecoration(labelText: 'Marka / Model', border: OutlineInputBorder()),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: telefonController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Telefon Numarası', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: kmController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Kilometre', border: OutlineInputBorder()),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () async {
@@ -106,6 +119,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   plaka: Vehicle.normalizePlaka(plaka),
                   sahipAdSoyad: sahipController.text.trim(),
                   markaModel: markaController.text.trim(),
+                  telefon: telefonController.text.trim().isEmpty ? null : telefonController.text.trim(),
+                  km: int.tryParse(kmController.text.trim().replaceAll('.', '')),
                 ));
 
                 if (ctx.mounted) Navigator.of(ctx).pop();
@@ -155,38 +170,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
+        // İsim + rol artık ortadaki başlıkla karışmasın diye sol köşede,
+        // ayrı bir "leading" alanında küçük şekilde gösteriliyor.
+        leadingWidth: 110,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 _currentUser.gorunenAd,
                 overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _currentUser.rol.etiket,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Ortada sadece marka + firma adı kalıyor, artık AppBar'ın tam
+        // ortasında hizalı (centerTitle + crossAxisAlignment.center).
+        centerTitle: true,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Marka: "Panimo" beyaz + "Car" turuncu.
+            RichText(
+              textAlign: TextAlign.center,
+              text: const TextSpan(
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(text: 'Panimo', style: TextStyle(color: Colors.white)),
+                  TextSpan(text: 'Car', style: TextStyle(color: Color(0xFFFF8A00))),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(12),
+            // Firma adı: dükkanın kendi ismi, marka logosunun hemen altında
+            // en belirgin (kalın, beyaz) şekilde gösterilir.
+            if (_currentUser.firmaAdi.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                _currentUser.firmaAdi,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              child: Text(
-                _currentUser.rol.etiket,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
+            ],
           ],
         ),
       ),
       endDrawer: AppDrawer(
         user: _currentUser,
-        onProfilGuncellendi: (yeniAd) {
-          setState(() => _currentUser = _currentUser.copyWith(adSoyad: yeniAd));
+        onProfilGuncellendi: (yeniAd, yeniFirmaAdi) {
+          setState(() => _currentUser =
+              _currentUser.copyWith(adSoyad: yeniAd, firmaAdi: yeniFirmaAdi));
         },
       ),
-      body: SupportBubbleOverlay(
-        child: SafeArea(
+      body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -234,7 +286,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 12),
 
               // Canlı özet: bir gider/işlem eklenir eklenmez otomatik güncellenir.
-              // Gelir / Gider / Net Ciro hep aynı satırda, yan yana durur.
+              // Gelir / Gider / Net Kar hep aynı satırda, yan yana durur.
               StreamBuilder<Map<String, double>>(
                 stream: _firestoreService.ozetStream(_currentUser.sirketId),
                 builder: (context, snapshot) {
@@ -257,7 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // PRD 2: staff rolü net kâr/ciro'yu göremez.
                     if (_currentUser.rol.netKarGorebilir)
                       FinanceCard(
-                        label: 'Net Ciro',
+                        label: 'Net Kar',
                         amount: gelir - gider,
                         color: AppColors.netProfit,
                         icon: Icons.account_balance_wallet_outlined,
@@ -314,11 +366,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
 
               const SizedBox(height: 24),
-              const Text('SON İŞLEM GÖREN ARAÇLAR',
+              const Text('SON İŞLEM GÖREN ARAÇLAR (Son 3)',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 12),
               StreamBuilder<List<Vehicle>>(
-                stream: _firestoreService.sonIslemGorenAraclar(_currentUser.sirketId),
+                stream: _firestoreService.sonIslemGorenAraclar(_currentUser.sirketId, limit: 3),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Padding(
@@ -360,11 +412,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
               ),
 
-              const SizedBox(height: 80), // destek balonuna yer aç
+              const SizedBox(height: 24),
             ],
           ),
         ),
-      ),
     );
   }
 }

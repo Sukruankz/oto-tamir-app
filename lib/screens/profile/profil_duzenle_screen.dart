@@ -16,17 +16,20 @@ class ProfilDuzenleScreen extends StatefulWidget {
 
 class _ProfilDuzenleScreenState extends State<ProfilDuzenleScreen> {
   late final TextEditingController _adController;
+  late final TextEditingController _firmaAdiController;
   bool _kaydediliyor = false;
 
   @override
   void initState() {
     super.initState();
     _adController = TextEditingController(text: widget.user.adSoyad);
+    _firmaAdiController = TextEditingController(text: widget.user.firmaAdi);
   }
 
   @override
   void dispose() {
     _adController.dispose();
+    _firmaAdiController.dispose();
     super.dispose();
   }
 
@@ -46,7 +49,24 @@ class _ProfilDuzenleScreenState extends State<ProfilDuzenleScreen> {
         uid: widget.user.uid,
         yeniAdSoyad: yeniAd,
       );
-      if (mounted) Navigator.of(context).pop(yeniAd);
+
+      final yeniFirmaAdi = _firmaAdiController.text.trim();
+      // Sadece Admin firma adını değiştirebilir (bkz. firestore.rules).
+      final firmaAdiDegisti = widget.user.rol.adminPaneliGorebilir &&
+          yeniFirmaAdi != widget.user.firmaAdi;
+      if (firmaAdiDegisti) {
+        await AuthService().firmaAdiGuncelle(
+          sirketId: widget.user.sirketId,
+          yeniFirmaAdi: yeniFirmaAdi,
+        );
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop({
+          'adSoyad': yeniAd,
+          'firmaAdi': firmaAdiDegisti ? yeniFirmaAdi : widget.user.firmaAdi,
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -82,6 +102,18 @@ class _ProfilDuzenleScreenState extends State<ProfilDuzenleScreen> {
               controller: _adController,
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(labelText: 'Ad Soyad', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _firmaAdiController,
+              enabled: widget.user.rol.adminPaneliGorebilir,
+              decoration: InputDecoration(
+                labelText: 'Firma Adı',
+                border: const OutlineInputBorder(),
+                helperText: widget.user.rol.adminPaneliGorebilir
+                    ? null
+                    : 'Firma adını sadece Dükkan Sahibi değiştirebilir.',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
