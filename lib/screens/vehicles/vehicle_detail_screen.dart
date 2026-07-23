@@ -5,6 +5,9 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/support_bubble.dart';
 
+/// PRD 3.2 — Araç Detay Ekranı: aracın kimlik kartı.
+/// Sahip adı, marka/model, kronolojik iş geçmişi ve belirgin
+/// "Yeni İşlem Ekle" butonu.
 class VehicleDetailScreen extends StatefulWidget {
   final AppUser user;
   final Vehicle vehicle;
@@ -56,6 +59,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                   job: VehicleJob(
                     id: '',
                     sirketId: widget.user.sirketId,
+                    plaka: widget.vehicle.plaka,
                     yapilanIs: yapilanIsController.text.trim(),
                     ucret: ucret,
                     girenKullaniciId: widget.user.uid,
@@ -71,12 +75,72 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
     );
   }
 
+  /// Sadece Admin: mevcut bir işlemin ücretini / yapılan iş adını düzenler
+  /// (bkz. firestore.rules — jobs update yalnızca adminMi).
+  Future<void> _islemDuzenleDialog(VehicleJob job) async {
+    final yapilanIsController = TextEditingController(text: job.yapilanIs);
+    final ucretController = TextEditingController(text: job.ucret.toStringAsFixed(0));
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('İşlemi Düzenle', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: yapilanIsController,
+              decoration: const InputDecoration(labelText: 'Yapılan İş', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ucretController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Ücret (TL)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final yeniUcret = double.tryParse(ucretController.text.replaceAll(',', '.'));
+                if (yapilanIsController.text.trim().isEmpty || yeniUcret == null) return;
+                await _firestoreService.islemGuncelle(
+                  sirketId: widget.user.sirketId,
+                  vehicleId: widget.vehicle.id,
+                  jobId: job.id,
+                  yapilanIs: yapilanIsController.text.trim(),
+                  yeniUcret: yeniUcret,
+                  eskiUcret: job.ucret,
+                  tarih: job.tarih,
+                );
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('İşlem güncellendi.')),
+                  );
+                }
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.vehicle.plaka)),
       body: SupportBubbleOverlay(
-        child: Column(
+        child: SafeArea(
+          child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -120,6 +184,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                     return const Center(child: Text('Henüz işlem kaydı yok.'));
                   }
                   final formatter = DateFormat('dd.MM.yyyy HH:mm');
+                  final duzenlenebilir = widget.user.rol.adminPaneliGorebilir;
                   return ListView.builder(
                     itemCount: jobs.length,
                     itemBuilder: (context, i) {
@@ -127,7 +192,17 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                       return ListTile(
                         title: Text(job.yapilanIs),
                         subtitle: Text(job.tarih != null ? formatter.format(job.tarih!) : '—'),
-                        trailing: Text('${job.ucret.toStringAsFixed(0)} TL'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('${job.ucret.toStringAsFixed(0)} TL'),
+                            if (duzenlenebilir) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.edit, size: 18, color: Colors.grey),
+                            ],
+                          ],
+                        ),
+                        onTap: duzenlenebilir ? () => _islemDuzenleDialog(job) : null,
                       );
                     },
                   );
@@ -135,6 +210,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

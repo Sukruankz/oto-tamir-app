@@ -13,12 +13,18 @@ class SupportBubbleOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Android'de 3 tuşlu navigasyon çubuğu (ya da bazı cihazlarda gesture
+    // bar) sistem tarafından ekranın en altına yerleşiyor. Bu Stack,
+    // Scaffold.body'nin doğrudan içinde olduğu için SafeArea'nın dışında
+    // kalıyor — bu yüzden alt boşluğu (MediaQuery padding.bottom) manuel
+    // ekliyoruz, yoksa balon nav çubuğunun arkasında/üstünde sıkışabilir.
+    final altBosluk = MediaQuery.of(context).padding.bottom;
     return Stack(
       children: [
         child,
         Positioned(
           right: 16,
-          bottom: 16,
+          bottom: 16 + altBosluk,
           child: _SupportBubbleButton(
             onTap: () => _openSupportChat(context),
           ),

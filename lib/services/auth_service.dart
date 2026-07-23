@@ -7,15 +7,33 @@ import '../models/user_role.dart';
 class AppUser {
   final String uid;
   final String email;
+  final String adSoyad;
   final String sirketId;
   final UserRole rol;
 
   AppUser({
     required this.uid,
     required this.email,
+    required this.adSoyad,
     required this.sirketId,
     required this.rol,
   });
+
+  /// Drawer/AppBar gibi yerlerde gösterilecek isim: adSoyad boşsa
+  /// e-postanın @ öncesine düşer.
+  String get gorunenAd => adSoyad.isNotEmpty ? adSoyad : email.split('@').first;
+
+  /// Profil düzenleme sonrası, tekrar login olmadan ekranlardaki (AppBar,
+  /// Drawer) ismi güncel tutmak için — yeni bir AppUser kopyası üretir.
+  AppUser copyWith({String? adSoyad}) {
+    return AppUser(
+      uid: uid,
+      email: email,
+      adSoyad: adSoyad ?? this.adSoyad,
+      sirketId: sirketId,
+      rol: rol,
+    );
+  }
 }
 
 class AuthService {
@@ -28,6 +46,21 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  /// "Profili Düzenle": kullanıcının görünen adını
+  /// companies/{sirketId}/users/{uid} dokümanında günceller.
+  Future<void> profilGuncelle({
+    required String sirketId,
+    required String uid,
+    required String yeniAdSoyad,
+  }) async {
+    await FirebaseFirestore.instance
+        .collection('companies')
+        .doc(sirketId)
+        .collection('users')
+        .doc(uid)
+        .set({'adSoyad': yeniAdSoyad}, SetOptions(merge: true));
+  }
 
   /// PRD 3.3: Admin, yeni personeli e-posta+ad+şifre ile ekler.
   /// NOT: Bir başka kullanıcı hesabı client SDK ile oluşturmak mevcut
@@ -53,10 +86,26 @@ class AuthService {
     if (user == null) return null;
     final idTokenResult = await user.getIdTokenResult(true);
     final claims = idTokenResult.claims ?? {};
+    final sirketId = claims['sirketId'] ?? '';
+
+    // adSoyad custom claim'de değil, companies/{sirketId}/users/{uid}
+    // dokümanında tutuluyor (bkz. FirestoreService / personelEkle).
+    String adSoyad = '';
+    if (sirketId.isNotEmpty) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(sirketId)
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      adSoyad = (userDoc.data()?['adSoyad'] as String?) ?? '';
+    }
+
     return AppUser(
       uid: user.uid,
       email: user.email ?? '',
-      sirketId: claims['sirketId'] ?? '',
+      adSoyad: adSoyad,
+      sirketId: sirketId,
       rol: UserRole.fromString(claims['rol'] ?? 'staff'),
     );
   }

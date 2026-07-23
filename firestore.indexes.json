@@ -1,13 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "jobs",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "sirketId", "order": "ASCENDING" },
-        { "fieldPath": "tarih", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
 }

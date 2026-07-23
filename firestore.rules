@@ -1,5 +1,15 @@
 rules_version = '2';
 
+// PRD 3.5 — Çoklu Kiracılı (Multi-Tenant) Veri İzolasyonu.
+// Postgres'teki Row-Level Security'nin Firestore karşılığı: her istek,
+// kullanıcının Auth token'ındaki custom claim'ler (sirketId, rol) ile
+// erişmeye çalıştığı dokümanın companies/{sirketId} yolundaki sirketId'yi
+// karşılaştırır. Eşleşmiyorsa erişim reddedilir.
+//
+// Custom claim'ler bir Cloud Function tarafından set edilir (bkz.
+// 01_Yol_Haritasi.md, Faz 1). Firestore Security Rules bu claim'lere
+// request.auth.token.sirketId / request.auth.token.rol ile erişir.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -11,46 +21,87 @@ service cloud.firestore {
       return girisYapmis() && request.auth.token.sirketId == sirketId;
     }
 
+    // Collection-group sorguları (ör. admin panelindeki "Gelir & Gider"
+    // bölümünün TÜM araçlardaki işlemleri tek sorguda çekmesi) için gerekli.
+    // ayniSirket(sirketId), {sirketId}'yi dokümanın YOLUNDAN (path) alır;
+    // ama bir collectionGroup sorgusu farklı şirketlerin dokümanlarını aynı
+    // anda tarayabildiğinden, Firestore kuralın her olası sonuç için
+    // sorgunun kendisinden (sadece where filtresinden, path'ten değil)
+    // doğrulanabilir olmasını ister. Bu yüzden aynı kontrolü dokümanın
+    // İÇİNDEKİ (denormalize edilmiş) sirketId ALANI üzerinden de yapıyoruz
+    // — client tarafında zaten .where('sirketId', isEqualTo: ...) ile
+    // sorgulanıyor (bkz. FirestoreService.tumIslemler).
+    function ayniSirketAlanindan() {
+      return girisYapmis() && resource.data.sirketId == request.auth.token.sirketId;
+    }
+
     function rol() {
       return request.auth.token.rol;
     }
 
+    // PRD 2 — Sadece Admin: personel ekleme/çıkarma, plaka düzeltme,
+    // gider silme/düzenleme.
     function adminMi(sirketId) {
       return ayniSirket(sirketId) && rol() == 'admin';
     }
 
+    // SuperAdmin: sistem geneli, kiracı yönetimi. Kendi sirketId'sine
+    // bağlı değildir; ayrı bir claim (superadmin == true) ile kontrol edilir.
     function superAdminMi() {
       return girisYapmis() && request.auth.token.superadmin == true;
     }
 
     match /companies/{sirketId} {
       allow read: if ayniSirket(sirketId) || superAdminMi();
+      // Şirket kaydını sadece SuperAdmin oluşturur/yönetir (abonelik vb.)
       allow write: if superAdminMi();
 
       match /users/{userId} {
+        // Herkes kendi şirketindeki personel listesini görebilir
+        // (dashboard'da "kim girdi" bilgisi için gerekli).
         allow read: if ayniSirket(sirketId);
+        // PRD 3.3.1 — Sadece Admin personel ekleyip çıkartabilir.
         allow create, update, delete: if adminMi(sirketId);
       }
 
       match /vehicles/{vehicleId} {
         allow read: if ayniSirket(sirketId);
+        // Her rol (admin + staff) araç kaydedebilir (PRD 2 — Staff:
+        // "yeni araç kaydetme" yetkisine sahip).
         allow create: if ayniSirket(sirketId);
+        // PRD 3.3.2 — Plaka düzeltme SADECE Admin.
         allow update: if adminMi(sirketId);
         allow delete: if adminMi(sirketId);
 
         match /jobs/{jobId} {
+          // NOT: Daha önce burada collectionGroup('jobs') sorgusu için
+          // resource.data.sirketId kontrolü de denendi, ama Firestore bu
+          // kombinasyonu güvenilir şekilde kanıtlayamadı (sürekli
+          // permission-denied). Bu yüzden admin panelindeki "Gelir & Gider"
+          // ekranı artık collectionGroup KULLANMIYOR — her aracın jobs alt
+          // koleksiyonunu ayrı ayrı okuyup client tarafında birleştiriyor
+          // (bkz. FirestoreService.tumIslemlerGetir). Bu basit, path bazlı
+          // kural her zaman güvenilir çalışıyor.
           allow read: if ayniSirket(sirketId);
+          // PRD 3.2 — Yeni İşlem Ekle: her rol yapabilir.
           allow create: if ayniSirket(sirketId);
+          // İşlem geçmişi düzenleme/silme sadece Admin (veri bütünlüğü).
           allow update, delete: if adminMi(sirketId);
         }
       }
 
       match /expenses/{expenseId} {
         allow read: if ayniSirket(sirketId);
+        // PRD 3.1 — Hızlı Gider Ekle: her rol yapabilir.
         allow create: if ayniSirket(sirketId);
+        // PRD 2 — "Veri silme/düzenleme" sadece Admin yetkisinde.
         allow update, delete: if adminMi(sirketId);
       }
 
+      // Ana sayfadaki finans kartları için önceden hesaplanmış aylık
+      // toplamlar (toplamGelir / toplamGider). Collection-group aggregate
+      // sorgusu yerine bu denormalize dokümanı kullanıyoruz — hem daha
+      // hızlı hem de güvenlik kurallarıyla daha basit uyumlu.
       match /summary/{monthId} {
         allow read: if ayniSirket(sirketId);
         allow write: if ayniSirket(sirketId);

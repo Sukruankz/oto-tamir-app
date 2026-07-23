@@ -16,9 +16,18 @@ enum UserRole {
     }
   }
 
-  /// PRD 2: Staff, net ciro/kâr marjı gibi finansal özetleri göremez.
   bool get netKarGorebilir => this == UserRole.admin || this == UserRole.superAdmin;
 
-  /// PRD 3.3: Sadece Admin, personel ekleme/çıkarma ve plaka düzeltme yapabilir.
   bool get adminPaneliGorebilir => this == UserRole.admin;
+
+  String get etiket {
+    switch (this) {
+      case UserRole.superAdmin:
+        return 'Sistem Yöneticisi';
+      case UserRole.admin:
+        return 'Dükkan Sahibi';
+      case UserRole.staff:
+        return 'Usta';
+    }
+  }
 }
