@@ -95,18 +95,19 @@ class AppDrawer extends StatelessWidget {
                       showSupportChat(context);
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.card_membership_outlined),
-                    title: const Text('Üyelik Bilgileri'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => UyelikBilgileriScreen(user: user),
-                        ),
-                      );
-                    },
-                  ),
+            if (user.rol.adminPaneliGorebilir)
+                    ListTile(
+                      leading: const Icon(Icons.card_membership_outlined),
+                      title: const Text('Üyelik Bilgileri'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => UyelikBilgileriScreen(user: user),
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),

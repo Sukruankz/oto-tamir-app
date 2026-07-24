@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/auth_service.dart';
+import 'models/user_role.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/superadmin/superadmin_panel_screen.dart';
 import 'theme/app_theme.dart';
 
 // `flutterfire configure` bu dosyayı otomatik üretir (Faz 2).
-import 'firebase_options.dart';
+// import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+    // options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(const OtoTamirApp());
 }
@@ -30,7 +32,8 @@ class OtoTamirApp extends StatelessWidget {
   }
 }
 
-/// Firebase Auth durumuna göre Login veya Dashboard'a yönlendirir.
+/// Firebase Auth durumuna göre Login / Dashboard / Süper Admin Paneli'ne
+/// yönlendirir.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -52,7 +55,13 @@ class AuthGate extends StatelessWidget {
             if (!userSnapshot.hasData) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            return DashboardScreen(user: userSnapshot.data!);
+            final appUser = userSnapshot.data!;
+            // SuperAdmin herhangi bir dükkana bağlı değildir, normal
+            // Dashboard yerine sistem geneli panele yönlendirilir.
+            if (appUser.rol == UserRole.superAdmin) {
+              return SuperAdminPanelScreen(user: appUser);
+            }
+            return DashboardScreen(user: appUser);
           },
         );
       },

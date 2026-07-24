@@ -9,10 +9,6 @@ import '../../widgets/finance_card.dart';
 import '../../widgets/app_drawer.dart';
 import '../vehicles/vehicle_detail_screen.dart';
 
-/// Ana sayfa: ekran görüntüsündeki panelin birebir karşılığı.
-/// - Üstte plaka arama çubuğu (PRD 3.2)
-/// - Finansal özet kartları (Gelir / Gider / Net Kar) — canlı (stream)
-/// - Hızlı Gider Ekle (PRD 3.1 — sadece açıklama + tutar, tarih YOK)
 class DashboardScreen extends StatefulWidget {
   final AppUser user;
   const DashboardScreen({super.key, required this.user});
@@ -28,8 +24,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _giderTutarController = TextEditingController();
   List<Vehicle> _searchResults = [];
   bool _savingExpense = false;
-  // Profil düzenlendiğinde tekrar login olmadan AppBar/Drawer'daki ismi
-  // güncelleyebilmek için AppUser'ı local state olarak tutuyoruz.
   late AppUser _currentUser;
 
   @override
@@ -102,7 +96,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final plaka = plakaController.text.trim();
                 if (plaka.isEmpty || sahipController.text.trim().isEmpty) return;
 
-                // PRD 3.5 — Şirket bazlı mükerrer plaka kontrolü.
                 final varMi = await _firestoreService.plakaKayitliMi(_currentUser.sirketId, plaka);
                 if (varMi) {
                   if (ctx.mounted) {
@@ -170,8 +163,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // İsim + rol artık ortadaki başlıkla karışmasın diye sol köşede,
-        // ayrı bir "leading" alanında küçük şekilde gösteriliyor.
         leadingWidth: 110,
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
@@ -199,14 +190,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-        // Ortada sadece marka + firma adı kalıyor, artık AppBar'ın tam
-        // ortasında hizalı (centerTitle + crossAxisAlignment.center).
         centerTitle: true,
         title: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Marka: "Panimo" beyaz + "Car" turuncu.
             RichText(
               textAlign: TextAlign.center,
               text: const TextSpan(
@@ -217,8 +205,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            // Firma adı: dükkanın kendi ismi, marka logosunun hemen altında
-            // en belirgin (kalın, beyaz) şekilde gösterilir.
             if (_currentUser.firmaAdi.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
@@ -242,7 +228,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Plaka arama çubuğu
               TextField(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
@@ -281,52 +266,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              const Text('GENEL FİNANSAL DURUM (BU AY)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 12),
+              // PRD 2: Usta/Çırak aylık Gelir/Gider/Net Kar özetine ERİŞEMEZ
+              // (sadece Admin görür) — başlık + kartların TAMAMI gizleniyor.
+              if (_currentUser.rol.netKarGorebilir) ...[
+                const Text('GENEL FİNANSAL DURUM (BU AY)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 12),
+                StreamBuilder<Map<String, double>>(
+                  stream: _firestoreService.ozetStream(_currentUser.sirketId),
+                  builder: (context, snapshot) {
+                    final gelir = snapshot.data?['gelir'] ?? 0;
+                    final gider = snapshot.data?['gider'] ?? 0;
 
-              // Canlı özet: bir gider/işlem eklenir eklenmez otomatik güncellenir.
-              // Gelir / Gider / Net Kar hep aynı satırda, yan yana durur.
-              StreamBuilder<Map<String, double>>(
-                stream: _firestoreService.ozetStream(_currentUser.sirketId),
-                builder: (context, snapshot) {
-                  final gelir = snapshot.data?['gelir'] ?? 0;
-                  final gider = snapshot.data?['gider'] ?? 0;
-
-                  final cards = <Widget>[
-                    FinanceCard(
-                      label: 'Toplam Gelir',
-                      amount: gelir,
-                      color: AppColors.income,
-                      icon: Icons.arrow_downward_rounded,
-                    ),
-                    FinanceCard(
-                      label: 'Toplam Gider',
-                      amount: gider,
-                      color: AppColors.expense,
-                      icon: Icons.arrow_upward_rounded,
-                    ),
-                    // PRD 2: staff rolü net kâr/ciro'yu göremez.
-                    if (_currentUser.rol.netKarGorebilir)
+                    final cards = <Widget>[
+                      FinanceCard(
+                        label: 'Toplam Gelir',
+                        amount: gelir,
+                        color: AppColors.income,
+                        icon: Icons.arrow_downward_rounded,
+                      ),
+                      FinanceCard(
+                        label: 'Toplam Gider',
+                        amount: gider,
+                        color: AppColors.expense,
+                        icon: Icons.arrow_upward_rounded,
+                      ),
                       FinanceCard(
                         label: 'Net Kar',
                         amount: gelir - gider,
                         color: AppColors.netProfit,
                         icon: Icons.account_balance_wallet_outlined,
                       ),
-                  ];
+                    ];
 
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (var i = 0; i < cards.length; i++) ...[
-                        if (i != 0) const SizedBox(width: 10),
-                        Expanded(child: cards[i]),
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < cards.length; i++) ...[
+                          if (i != 0) const SizedBox(width: 10),
+                          Expanded(child: cards[i]),
+                        ],
                       ],
-                    ],
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+              ],
 
               const SizedBox(height: 24),
               const Text('HIZLI GİDER EKLE (Tarih Girmeden Anlık Kayıt)',

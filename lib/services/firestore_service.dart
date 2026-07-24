@@ -145,8 +145,6 @@ class FirestoreService {
     return tumIslemler;
   }
 
-  /// "Kayıtlarım" ekranı için: Usta/Çırak rolündeki kullanıcının TÜM
-  /// araçlarda KENDİ girdiği işlemler (girenKullaniciId == uid).
   Future<List<VehicleJob>> kendiIslemlerimGetir(String sirketId, String uid) async {
     final vehiclesSnap = await _vehicles(sirketId).get();
     final kendiIslemlerim = <VehicleJob>[];
@@ -166,7 +164,6 @@ class FirestoreService {
     return kendiIslemlerim;
   }
 
-  /// "Kayıtlarım" ekranı için: kullanıcının KENDİ girdiği giderler.
   Future<List<Expense>> kendiGiderlerimGetir(String sirketId, String uid) async {
     final snap = await _expenses(sirketId).where('girenKullaniciId', isEqualTo: uid).get();
     final giderler = snap.docs.map((d) => Expense.fromFirestore(d)).toList();
@@ -219,5 +216,72 @@ class FirestoreService {
         .limit(limit)
         .snapshots()
         .map((s) => s.docs.map((d) => Vehicle.fromFirestore(d)).toList());
+  }
+
+  // ---- Süper Admin Paneli ----------------------------------------------
+
+  Stream<QuerySnapshot> tumSirketler() {
+    return _db.collection('companies').orderBy('createdAt', descending: true).snapshots();
+  }
+
+  Future<int> sirketPersonelSayisi(String sirketId) async {
+    final snap = await _db.collection('companies').doc(sirketId).collection('users').get();
+    return snap.docs.length;
+  }
+
+  Future<void> sirketDurumDegistir(String sirketId, String yeniDurum) {
+    return _db.collection('companies').doc(sirketId).update({'subscriptionStatus': yeniDurum});
+  }
+
+  Future<Map<String, dynamic>> sirketDetayGetir(String sirketId) async {
+    final sirketRef = _db.collection('companies').doc(sirketId);
+    final vehiclesSnap = await sirketRef.collection('vehicles').get();
+    final usersSnap = await sirketRef.collection('users').get();
+    final summarySnap = await sirketRef.collection('summary').get();
+
+    double toplamGelir = 0;
+    double toplamGider = 0;
+    for (final doc in summarySnap.docs) {
+      final data = doc.data();
+      toplamGelir += (data['toplamGelir'] ?? 0).toDouble();
+      toplamGider += (data['toplamGider'] ?? 0).toDouble();
+    }
+
+    return {
+      'aracSayisi': vehiclesSnap.docs.length,
+      'personel': usersSnap.docs.map((d) => d.data()).toList(),
+      'toplamGelir': toplamGelir,
+      'toplamGider': toplamGider,
+    };
+  }
+
+  Future<void> sirketSil(String sirketId) async {
+    final sirketRef = _db.collection('companies').doc(sirketId);
+
+    final vehiclesSnap = await sirketRef.collection('vehicles').get();
+    for (final vDoc in vehiclesSnap.docs) {
+      final jobsSnap = await vDoc.reference.collection('jobs').get();
+      for (final jDoc in jobsSnap.docs) {
+        await jDoc.reference.delete();
+      }
+      await vDoc.reference.delete();
+    }
+
+    final expensesSnap = await sirketRef.collection('expenses').get();
+    for (final eDoc in expensesSnap.docs) {
+      await eDoc.reference.delete();
+    }
+
+    final usersSnap = await sirketRef.collection('users').get();
+    for (final uDoc in usersSnap.docs) {
+      await uDoc.reference.delete();
+    }
+
+    final summarySnap = await sirketRef.collection('summary').get();
+    for (final sDoc in summarySnap.docs) {
+      await sDoc.reference.delete();
+    }
+
+    await sirketRef.delete();
   }
 }

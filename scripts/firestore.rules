@@ -38,6 +38,8 @@ service cloud.firestore {
       }
 
       match /vehicles/{vehicleId} {
+        // SuperAdmin: Süper Admin Paneli'ndeki şirket detay ekranı (araç
+        // sayısı) için okuyabilmeli.
         allow read: if ayniSirket(sirketId) || superAdminMi();
         allow create: if ayniSirket(sirketId);
         allow update: if adminMi(sirketId);
@@ -53,6 +55,7 @@ service cloud.firestore {
       }
 
       match /expenses/{expenseId} {
+        // SuperAdmin: şirket detay ekranı için okuyabilmeli.
         allow read: if ayniSirket(sirketId) || superAdminMi();
         allow create: if ayniSirket(sirketId);
         allow update: if adminMi(sirketId) ||
@@ -61,6 +64,7 @@ service cloud.firestore {
       }
 
       match /summary/{monthId} {
+        // SuperAdmin: şirket detay ekranındaki toplam gelir/gider için.
         allow read: if ayniSirket(sirketId) || superAdminMi();
         allow write: if ayniSirket(sirketId) || superAdminMi();
       }
